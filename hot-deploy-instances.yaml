@@ -1,0 +1,89 @@
+heat_template_version: pike
+
+description: heat template to deploy instances
+
+parameters:
+  instance_count:
+    type: number
+    label: Instance Count
+    default: 3
+  instance_type:
+    type: string
+    label: Instance Type
+    description: Type of instance (flavor) to be used
+    default: m1.small
+    constraints:
+      - allowed_values: [ m1.small, m1.medium, m1.large, m1.xlarge ]
+        description: Value must be one of m1.medium, m1.large or m1.xlarge.
+  instance_name:
+    type: string
+    label: Instance Type
+    description: Type of instance (flavor) to be used
+    default: dev-instance 
+  key_name:
+    type: string
+    description : Name of a KeyPair to enable SSH access to the instance
+    default: dev-key
+  image_id:
+    type: string
+    description: >
+      Name or ID of the image to use for the WordPress server.
+    default: ubuntu16.04
+  net_id:
+    type: string
+    description: Network ID
+    default: dev-net
+  app_subnet_id:
+    type: string
+    description: application subnet ID
+    default: dev-private-app
+
+resources:
+  instances:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: { get_param: instance_count }
+      resource_def:
+        type: hot-instances.yaml
+        properties:
+          instance_name: dev-k8s_%index%
+          instance_type: { get_param: instance_type }
+          web_server_security_group: { get_resource: web_server_security_group }
+  web_server_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: Add security group rules for server
+      name: dev-k8s-sg
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 80
+          port_range_max: 80
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 22
+          port_range_max: 22
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 6443
+          port_range_max: 6443
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 8080
+          port_range_max: 8080
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 2379
+          port_range_max: 2380
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 10250
+          port_range_max: 10255
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 30000
+          port_range_max: 32767
+# outputs:
+#   instance_ip:
+#     description: The IP address of the deployed instance
+#     value: { get_attr: [instances, first_address] }
