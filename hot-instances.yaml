@@ -1,0 +1,75 @@
+heat_template_version: pike
+
+description: heat template to deploy instances
+
+parameters:
+  instance_name:
+    type: string
+    label: Instance Name
+    default: dev_kube
+  instance_type:
+    type: string
+    label: Instance Type
+    description: Type of instance (flavor) to be used
+    default: m1.small
+    constraints:
+      - allowed_values: [ m1.small, m1.medium, m1.large, m1.xlarge ]
+        description: Value must be one of m1.medium, m1.large or m1.xlarge.
+  key_name:
+    type: string
+    description : Name of a KeyPair to enable SSH access to the instance
+    default: dev-key
+  image_id:
+    type: string
+    description: >
+      Name or ID of the image to use for the WordPress server.
+    default: ubuntu16.04
+  net_id:
+    type: string
+    description: Network ID
+    default: dev-net
+  app_subnet_id:
+    type: string
+    description: application subnet ID
+    default: dev-private-app
+  web_server_security_group:
+    type: string
+
+resources:
+  instance:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: instance_name }
+      key_name: { get_param: key_name }
+      image: { get_param: image_id }
+      flavor: { get_param: instance_type }
+      networks:
+        - port: { get_resource: web_server_port }
+      user_data:
+        str_replace:
+          template: |
+            #!/bin/bash -v
+            apt update
+            apt upgrade -y
+
+            apt-get install -y git gcc make openssl libssl-dev libbz2-dev libreadline-dev libsqlite3-dev nfs-common apt-transport-https
+            apt-get install -y docker.io
+            usermod -aG docker user
+
+            curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+            cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+            deb http://apt.kubernetes.io/ kubernetes-xenial main
+            EOF
+            apt-get update
+            apt-get install -y kubelet kubeadm kubectl
+            
+          params:
+            user: ubuntu
+
+  web_server_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_param: net_id }
+      fixed_ips:
+        - subnet_id: { get_param: app_subnet_id }
+      security_groups: [{ get_param: web_server_security_group }]
